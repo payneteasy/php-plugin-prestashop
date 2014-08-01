@@ -5,6 +5,10 @@ if (!defined('_PS_VERSION_'))
     exit;
 }
 
+require_once __DIR__ . '/payment_constants.php';
+
+use PaynetEasy\PaymentConfigKeys as Keys;
+
 /**
  * Payment module for PaynetEasy payment form.
  *
@@ -12,36 +16,6 @@ if (!defined('_PS_VERSION_'))
  */
 class PaynetEasy extends PaymentModule
 {
-    /**
-     * Database key for end point.
-     */
-    const END_POINT_KEY          = 'PAYNETEASY_END_POINT';
-
-    /**
-     * Database key for login.
-     */
-    const LOGIN_KEY              = 'PAYNETEASY_LOGIN';
-
-    /**
-     * Database key for signing key.
-     */
-    const SIGNING_KEY_KEY        = 'PAYNETEASY_SIGNING_KEY';
-
-    /**
-     * Database key for sandbox gateway url.
-     */
-    const SANDBOX_GATEWAY_KEY    = 'PAYNETEASY_SANDBOX_GATEWAY';
-
-    /**
-     * Database key for production gateway url.
-     */
-    const PRODUCTION_GATEWAY_KEY = 'PAYNETEASY_PRODUCTION_GATEWAY';
-
-    /**
-     * Database key for gateway mode (production or sandbox).
-     */
-    const GATEWAY_MODE_KEY       = 'PAYNETEASY_GATEWAY_MODE';
-
     /**
      * Name for forms submit input.
      *
@@ -85,14 +59,7 @@ class PaynetEasy extends PaymentModule
             Shop::setContext(Shop::CONTEXT_ALL);
         }
 
-        return $this->updateConfigValues(array(
-            self::END_POINT_KEY,
-            self::LOGIN_KEY,
-            self::SIGNING_KEY_KEY,
-            self::SANDBOX_GATEWAY_KEY,
-            self::PRODUCTION_GATEWAY_KEY,
-            self::GATEWAY_MODE_KEY
-        ));
+        $this->saveConfig();
     }
 
     /**
@@ -108,12 +75,12 @@ class PaynetEasy extends PaymentModule
         }
 
         return $this->deleteConfigValues(array(
-            self::END_POINT_KEY,
-            self::LOGIN_KEY,
-            self::SIGNING_KEY_KEY,
-            self::SANDBOX_GATEWAY_KEY,
-            self::PRODUCTION_GATEWAY_KEY,
-            self::GATEWAY_MODE_KEY
+            Keys\END_POINT_KEY,
+            Keys\LOGIN_KEY,
+            Keys\SIGNING_KEY_KEY,
+            Keys\SANDBOX_GATEWAY_KEY,
+            Keys\PRODUCTION_GATEWAY_KEY,
+            Keys\GATEWAY_MODE_KEY
         ));
     }
 
@@ -139,18 +106,18 @@ class PaynetEasy extends PaymentModule
     }
 
     /**
-     * Saves configuration form to database.
+     * Saves configuration to database.
      *
      * @return      boolean     Operation result (true if success).
      */
-    protected function saveConfigForm() {
+    protected function saveConfig() {
         return $this->updateConfigValues(array(
-            self::END_POINT_KEY,
-            self::LOGIN_KEY,
-            self::SIGNING_KEY_KEY,
-            self::SANDBOX_GATEWAY_KEY,
-            self::PRODUCTION_GATEWAY_KEY,
-            self::GATEWAY_MODE_KEY
+            Keys\END_POINT_KEY,
+            Keys\LOGIN_KEY,
+            Keys\SIGNING_KEY_KEY,
+            Keys\SANDBOX_GATEWAY_KEY,
+            Keys\PRODUCTION_GATEWAY_KEY,
+            Keys\GATEWAY_MODE_KEY
         ));
     }
 
@@ -175,12 +142,12 @@ class PaynetEasy extends PaymentModule
                     'title' => $this->l('Settings'),
                 ),
                 'input'  => array(
-                    $this->configTextField($helper, self::END_POINT_KEY, 'End point'),
-                    $this->configTextField($helper, self::LOGIN_KEY, 'Login'),
-                    $this->configTextField($helper, self::SIGNING_KEY_KEY, 'Signing key'),
-                    $this->configTextField($helper, self::SANDBOX_GATEWAY_KEY, 'Sandbox gateway url'),
-                    $this->configTextField($helper, self::PRODUCTION_GATEWAY_KEY, 'Production gateway url'),
-                    $this->configRadioField($helper, self::GATEWAY_MODE_KEY, 'Gateway mode', array('sandbox', 'production'))
+                    $this->configTextField($helper, Keys\END_POINT_KEY, 'End point'),
+                    $this->configTextField($helper, Keys\LOGIN_KEY, 'Login'),
+                    $this->configTextField($helper, Keys\SIGNING_KEY_KEY, 'Signing key'),
+                    $this->configTextField($helper, Keys\SANDBOX_GATEWAY_KEY, 'Sandbox gateway url'),
+                    $this->configTextField($helper, Keys\PRODUCTION_GATEWAY_KEY, 'Production gateway url'),
+                    $this->configRadioField($helper, Keys\GATEWAY_MODE_KEY, 'Gateway mode', array('sandbox', 'production'))
                 ),
                 'submit' => array(
                     'title' => $this->l('Save'),

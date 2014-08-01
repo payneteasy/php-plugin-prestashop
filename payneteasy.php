@@ -54,6 +54,11 @@ class PaynetEasy extends PaymentModule
             return false;
         }
 
+        if (!$this->registerHooks(array('displayPayment')))
+        {
+            return false;
+        }
+
         if (Shop::isFeatureActive())
         {
             Shop::setContext(Shop::CONTEXT_ALL);
@@ -103,6 +108,21 @@ class PaynetEasy extends PaymentModule
         }
 
         return $this->displayConfirmation($this->l('Configuration saved.')) . $this->generateConfigForm();
+    }
+
+    /**
+     * Display "Pay by PaynetEasy" button.
+     *
+     * @return      string      "Pay bu PaynetEasy" button html.
+     */
+    public function hookDisplayPayment()
+    {
+        if (!$this->active)
+        {
+			return;
+        }
+
+        return $this->display(__FILE__, 'payment.tpl');
     }
 
     /**
@@ -191,6 +211,25 @@ class PaynetEasy extends PaymentModule
         {
             if (!Configuration::deleteByName($config_key))
             {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Register hooks.
+     *
+     * @param       array       $hook_names         Array with hook names.
+     *
+     * @return      boolean     Operation result (true if success).
+     */
+    protected function registerHooks(array $hook_names)
+    {
+        foreach ($hook_names as $hook_name)
+        {
+            if (!$this->registerHook($hook_name)) {
                 return false;
             }
         }

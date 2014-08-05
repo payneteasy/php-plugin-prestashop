@@ -28,7 +28,7 @@ p.payment_module a.payneteasy:hover
 <div class="row">
 	<div class="col-xs-12 col-md-6">
         <p class="payment_module">
-			<a href="{$link->getModuleLink('payneteasy', 'startsale', [], true)|escape:'html'}" class="payneteasy">
+			<a href="{$link->getModuleLink('payneteasy', 'confirmation', [], true)|escape:'html'}" class="payneteasy">
                 PaynetEasy
 			</a>
 		</p>

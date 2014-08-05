@@ -55,6 +55,11 @@ class PaynetEasy extends PaymentModule
             return false;
         }
 
+        if (!$this->createPaynetPaymentsTable())
+        {
+            return false;
+        }
+
         if (Shop::isFeatureActive())
         {
             Shop::setContext(Shop::CONTEXT_ALL);
@@ -124,6 +129,24 @@ class PaynetEasy extends PaymentModule
         }
 
         return $this->display(__FILE__, 'payment.tpl');
+    }
+
+    /**
+     * Creates database table for paynet payment identifier.
+     *
+     * @return      boolean     Operation result (true if success).
+     */
+    protected function createPaynetPaymentsTable()
+    {
+		return Db::getInstance()->Execute('
+		CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'paynet_payments` (
+			`id_paynet_payment` int(10) unsigned NOT NULL,
+			`id_prestashop_cart` int(10) unsigned NOT NULL,
+			`id_prestashop_order` int(10) unsigned,
+			PRIMARY KEY (`id_paynet_payment`),
+            INDEX (`id_prestashop_cart`),
+            INDEX (`id_prestashop_order`)
+		) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8');
     }
 
     /**

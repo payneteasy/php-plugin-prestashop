@@ -60,8 +60,13 @@ class PaynetEasy extends PaymentModule
             Shop::setContext(Shop::CONTEXT_ALL);
         }
 
-        $this->saveConfig();
+        if (!$this->saveConfig())
+        {
+            return false;
         }
+
+        return true;
+    }
 
     /**
      * Deletes settings from database.
@@ -98,7 +103,7 @@ class PaynetEasy extends PaymentModule
             return $this->generateConfigForm();
         }
 
-        if (!$this->saveConfigForm())
+        if (!$this->saveConfig())
         {
             return $this->displayError($this->l('Can not save configuration.')) . $this->generateConfigForm();
         }

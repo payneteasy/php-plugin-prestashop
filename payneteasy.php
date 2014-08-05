@@ -50,7 +50,7 @@ class PaynetEasy extends PaymentModule
             return false;
         }
 
-        if (!$this->registerHooks(array('displayPayment')))
+        if (!$this->registerHooks(array('displayPayment', 'displayPaymentReturn')))
         {
             return false;
         }
@@ -129,6 +129,22 @@ class PaynetEasy extends PaymentModule
         }
 
         return $this->display(__FILE__, 'payment.tpl');
+    }
+
+    /**
+     * Display success message after payment.
+     *
+     * @return      string      Success message html.
+     */
+    public function hookDisplayPaymentReturn()
+    {
+		if (!$this->active)
+        {
+			return;
+        }
+
+		return $this->display(__FILE__, 'payment_return.tpl');
+
     }
 
     /**
@@ -273,7 +289,7 @@ class PaynetEasy extends PaymentModule
      *
      * @return      string          Form field html.
      */
-    protected function configTextField(HelperForm $helper, $config_key, $field_label, $required = true, $size = 20) {
+    protected function configTextField(HelperForm $helper, $config_key, $field_label, $required = true, $size = 50) {
         $this->loadConfigValue($helper, $config_key);
 
         return array(

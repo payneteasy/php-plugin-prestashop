@@ -10,6 +10,7 @@ use PaynetEasy\PaynetEasyApi\PaymentData\Customer as PaynetCustomer;
 use PaynetEasy\PaynetEasyApi\PaymentData\BillingAddress;
 use PaynetEasy\PaynetEasyApi\PaymentData\QueryConfig;
 use PaynetEasy\PaynetEasyApi\PaymentProcessor;
+use PaynetEasy\PaynetEasyApi\Transport\CallbackResponse;
 
 use Module;
 use Cart;
@@ -50,7 +51,7 @@ class PaymentAggregate
      * @param       Cart        $prestashop_cart        Prestashop cart.
      * @param       string      $return_url             Url for order processing after payment.
      *
-     * @return      \PaynetEasy\PaynetEasyApi\Transport\Response        Gateway response object.
+     * @return      Response        Gateway response object.
      */
     public function startSale(Cart $prestashop_cart, $return_url)
     {
@@ -61,6 +62,25 @@ class PaymentAggregate
     }
 
     /**
+     * Finish order processing.
+     * Method checks callback data and returns object with them.
+     * After that order processing result can be displayed.
+     *
+     * @param       Cart                    $prestashop_cart        Prestashop cart.
+     * @param       CallbackResponse        $callback               Callback object.
+     *
+     * @return      CallbackResponse        Callback object.
+     */
+    public function finishSale(Cart $prestashop_cart, CallbackResponse $callback)
+    {
+        $payment_processor  = new PaymentProcessor;
+        $paynet_transaction = $this->getPaynetTransaction($prestashop_cart);
+        $paynet_transaction->setStatus(PaymentTransaction::STATUS_PROCESSING);
+
+        return $payment_processor->processCustomerReturn($callback, $paynet_transaction);
+    }
+
+    /**
      * Get PaynetEasy payment transaction object by Prestashop cart object.
      *
      * @param       Cart        $prestashop_cart        Prestashop cart.
@@ -68,7 +88,7 @@ class PaymentAggregate
      *
      * @return      PaynetTransaction       PaynetEasy payment transaction
      */
-    protected function getPaynetTransaction(Cart $prestashop_cart, $return_url)
+    protected function getPaynetTransaction(Cart $prestashop_cart, $return_url = null)
     {
         $paynet_transaction = new PaymentTransaction;
 
@@ -87,7 +107,7 @@ class PaymentAggregate
      *
      * @return      QueryConfig     PaynetEasy payment transaction
      */
-    protected function getQueryConfig($return_url)
+    protected function getQueryConfig($return_url = null)
     {
         $query_config = new QueryConfig;
 
@@ -122,9 +142,9 @@ class PaymentAggregate
     {
         $paynet_payment = new Payment;
 
-        if (Tools::getIsset('paynet_order_id'))
+        if (Tools::getIsset('orderid'))
         {
-            $paynet_payment->setPaynetId(Tools::getValue('paynet_order_id'));
+            $paynet_payment->setPaynetId(Tools::getValue('orderid'));
         }
 
         $paynet_payment

@@ -34,7 +34,8 @@ class PayneteasyStartsaleModuleFrontController extends ModuleFrontController
     {
         $payment_aggregate = new PaymentAggregate($this->module);
         $prestashop_cart = $this->context->cart;
-        $return_url = $this->context->link->getModuleLink('payneteasy', 'finishsale', array(), true);
+        $return_url = $this->context->link
+            ->getModuleLink('payneteasy', 'finishsale', array('id_cart' => $prestashop_cart->id), true);
 
         try
         {

@@ -3,7 +3,6 @@
 namespace PaynetEasy;
 
 require_once __DIR__ . '/vendor/autoload.php';
-require_once __DIR__ . '/payment_constants.php';
 
 use PaynetEasy\PaynetEasyApi\PaymentData\PaymentTransaction;
 use PaynetEasy\PaynetEasyApi\PaymentData\Payment;
@@ -22,8 +21,6 @@ use Currency;
 use Validate;
 use Configuration;
 use Tools;
-
-use PaynetEasy\PaymentConfigKeys as Keys;
 
 /**
  * Aggregate with common payment methods.
@@ -95,12 +92,12 @@ class PaymentAggregate
         $query_config = new QueryConfig;
 
         $query_config
-            ->setEndPoint((int) Configuration::get(Keys\END_POINT_KEY))
-            ->setLogin(Configuration::get(Keys\LOGIN_KEY))
-            ->setSigningKey(Configuration::get(Keys\SIGNING_KEY_KEY))
-            ->setGatewayMode(Configuration::get(Keys\GATEWAY_MODE_KEY))
-            ->setGatewayUrlSandbox(Configuration::get(Keys\SANDBOX_GATEWAY_KEY))
-            ->setGatewayUrlProduction(Configuration::get(Keys\PRODUCTION_GATEWAY_KEY))
+            ->setEndPoint((int) Configuration::get('PAYNETEASY_END_POINT'))
+            ->setLogin(Configuration::get('PAYNETEASY_LOGIN'))
+            ->setSigningKey(Configuration::get('PAYNETEASY_SIGNING_KEY'))
+            ->setGatewayMode(Configuration::get('PAYNETEASY_GATEWAY_MODE'))
+            ->setGatewayUrlSandbox(Configuration::get('PAYNETEASY_SANDBOX_GATEWAY'))
+            ->setGatewayUrlProduction(Configuration::get('PAYNETEASY_PRODUCTION_GATEWAY'))
         ;
 
         if (Validate::isUrl($return_url))

@@ -5,10 +5,6 @@ if (!defined('_PS_VERSION_'))
     exit;
 }
 
-require_once __DIR__ . '/payment_constants.php';
-
-use PaynetEasy\PaymentConfigKeys as Keys;
-
 /**
  * Payment module for PaynetEasy payment form.
  *
@@ -65,7 +61,7 @@ class PaynetEasy extends PaymentModule
         }
 
         $this->saveConfig();
-    }
+        }
 
     /**
      * Deletes settings from database.
@@ -80,12 +76,12 @@ class PaynetEasy extends PaymentModule
         }
 
         return $this->deleteConfigValues(array(
-            Keys\END_POINT_KEY,
-            Keys\LOGIN_KEY,
-            Keys\SIGNING_KEY_KEY,
-            Keys\SANDBOX_GATEWAY_KEY,
-            Keys\PRODUCTION_GATEWAY_KEY,
-            Keys\GATEWAY_MODE_KEY
+            'PAYNETEASY_END_POINT',
+            'PAYNETEASY_LOGIN',
+            'PAYNETEASY_SIGNING_KEY',
+            'PAYNETEASY_SANDBOX_GATEWAY',
+            'PAYNETEASY_PRODUCTION_GATEWAY',
+            'PAYNETEASY_GATEWAY_MODE'
         ));
     }
 
@@ -132,12 +128,12 @@ class PaynetEasy extends PaymentModule
      */
     protected function saveConfig() {
         return $this->updateConfigValues(array(
-            Keys\END_POINT_KEY,
-            Keys\LOGIN_KEY,
-            Keys\SIGNING_KEY_KEY,
-            Keys\SANDBOX_GATEWAY_KEY,
-            Keys\PRODUCTION_GATEWAY_KEY,
-            Keys\GATEWAY_MODE_KEY
+            'PAYNETEASY_END_POINT',
+            'PAYNETEASY_LOGIN',
+            'PAYNETEASY_SIGNING_KEY',
+            'PAYNETEASY_SANDBOX_GATEWAY',
+            'PAYNETEASY_PRODUCTION_GATEWAY',
+            'PAYNETEASY_GATEWAY_MODE'
         ));
     }
 
@@ -162,12 +158,12 @@ class PaynetEasy extends PaymentModule
                     'title' => $this->l('Settings'),
                 ),
                 'input'  => array(
-                    $this->configTextField($helper, Keys\END_POINT_KEY, 'End point'),
-                    $this->configTextField($helper, Keys\LOGIN_KEY, 'Login'),
-                    $this->configTextField($helper, Keys\SIGNING_KEY_KEY, 'Signing key'),
-                    $this->configTextField($helper, Keys\SANDBOX_GATEWAY_KEY, 'Sandbox gateway url'),
-                    $this->configTextField($helper, Keys\PRODUCTION_GATEWAY_KEY, 'Production gateway url'),
-                    $this->configRadioField($helper, Keys\GATEWAY_MODE_KEY, 'Gateway mode', array('sandbox', 'production'))
+                    $this->configTextField($helper, 'PAYNETEASY_END_POINT', 'End point'),
+                    $this->configTextField($helper, 'PAYNETEASY_LOGIN', 'Login'),
+                    $this->configTextField($helper, 'PAYNETEASY_SIGNING_KEY', 'Signing key'),
+                    $this->configTextField($helper, 'PAYNETEASY_SANDBOX_GATEWAY', 'Sandbox gateway url'),
+                    $this->configTextField($helper, 'PAYNETEASY_PRODUCTION_GATEWAY', 'Production gateway url'),
+                    $this->configRadioField($helper, 'PAYNETEASY_GATEWAY_MODE', 'Gateway mode', array('sandbox', 'production'))
                 ),
                 'submit' => array(
                     'title' => $this->l('Save'),

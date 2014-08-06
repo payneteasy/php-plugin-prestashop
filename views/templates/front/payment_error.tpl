@@ -15,10 +15,21 @@
 </div>
 
 <p class="cart_navigation exclusive">
-    <a
-        href="{$link->getPageLink('order', true, NULL, "step=3")|escape:'html'}"
-        class="button-exclusive btn btn-default"
-    >
-        <i class="icon-chevron-left"></i>{l s='Other payment methods' mod='payneteasy'}
-    </a>
+    {if $is_guest}
+        <a
+            class="button-exclusive btn btn-default"
+            href="{$link->getPageLink('guest-tracking', true, NULL, "id_order={$reference_order}&email={$email}")|escape:'html':'UTF-8'}"
+            title="{l s='Follow my order'}"
+        >
+            <i class="icon-chevron-left"></i>{l s='Follow my order'}
+        </a>
+    {else}
+        <a
+            class="button-exclusive btn btn-default"
+            href="{$link->getPageLink('history', true)|escape:'html':'UTF-8'}"
+            title="{l s='Back to orders'}"
+        >
+            <i class="icon-chevron-left"></i>{l s='Back to orders'}
+        </a>
+    {/if}
 </p>

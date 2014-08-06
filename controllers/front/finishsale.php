@@ -43,24 +43,17 @@ class PayneteasyFinishsaleModuleFrontController extends ModuleFrontController
         catch (Exception $ex)
         {
             $this->logException($ex);
+            $this->createOrderWithErrorPayment($prestashop_cart, $paynet_response, $ex->getMessage());
             return $this->displayError('Invalid payment data received.');
         }
 
         if (!$paynet_response->isApproved())
         {
+            $this->createOrderWithErrorPayment($prestashop_cart, $paynet_response);
             return $this->displayError('Payment not passed');
         }
 
-        try
-        {
-            $this->createOrder($prestashop_cart, $paynet_response);
-        }
-        catch (Exception $ex)
-        {
-            $this->logException($ex);
-            return $this->displayError();
-        }
-
+        $this->createOrderWithSuccessPayment($prestashop_cart, $paynet_response);
         $this->successRedirect();
     }
 
@@ -96,12 +89,62 @@ class PayneteasyFinishsaleModuleFrontController extends ModuleFrontController
     }
 
     /**
-     * Creates order for cart and payment response.
+     * Creates order for cart if payment processed with error.
+     *
+     * @param       Cart        $prestashop_cart        Prestashop cart object.
+     */
+    protected function createOrderWithErrorPayment(Cart $prestashop_cart, CallbackResponse $paynet_response, $error_message = null)
+    {
+        $order_comment = $paynet_response->getStatus();
+
+        if (!is_null($order_comment))
+        {
+            $order_comment .= ": {$error_message}";
+        }
+
+        // If now set status 'PS_OS_ERROR', transaction will not be saved.
+        // But because assigned amount '0' and status 'PS_OS_PAYMENT', transaction will be saved
+        // and displayed with warning in admin control panel.
+        $this->createOrder(
+            $prestashop_cart,
+            $paynet_response,
+            Configuration::get('PS_OS_PAYMENT'),
+            0,
+            $order_comment
+        );
+    }
+
+    /**
+     * Creates order for cart and payment response if payment succesfully processed.
      *
      * @param       Cart                    $prestashop_cart        Prestashop cart object.
      * @param       CallbackResponse        $paynet_response        PaynetEasy payment response.
      */
-    protected function createOrder(Cart $prestashop_cart, CallbackResponse $paynet_response)
+    protected function createOrderWithSuccessPayment(Cart $prestashop_cart, CallbackResponse $paynet_response)
+    {
+        $this->createOrder(
+            $prestashop_cart,
+            $paynet_response,
+            Configuration::get('PS_OS_PAYMENT'),
+            $prestashop_cart->getOrderTotal()
+        );
+    }
+
+    /**
+     * Creates order for cart and payment response.
+     *
+     * @param       Cart                    $prestashop_cart        Prestashop cart object.
+     * @param       CallbackResponse        $paynet_response        PaynetEasy payment response.
+     * @param       int                     $order_status_id        Order status id.
+     * @param       float                   $payment_amount         Payment amount.
+     * @param       string                  $order_comment          Comment for order.
+     */
+    protected function createOrder(
+        Cart $prestashop_cart,
+        CallbackResponse $paynet_response,
+        $order_status_id,
+        $payment_amount,
+        $order_comment = null)
     {
         $db = Db::getInstance();
         $paynet_payment_id = $db->escape($paynet_response->getPaymentPaynetId());
@@ -109,10 +152,10 @@ class PayneteasyFinishsaleModuleFrontController extends ModuleFrontController
 
         $this->module->validateOrder(
             $prestashop_cart_id,
-            Configuration::get('PS_OS_PAYMENT'),
-            $prestashop_cart->getOrderTotal(),
+            $order_status_id,
+            $payment_amount,
             $this->module->name,
-            null,
+            $order_comment,
             array('transaction_id' => $paynet_payment_id)
         );
 
@@ -158,6 +201,19 @@ class PayneteasyFinishsaleModuleFrontController extends ModuleFrontController
         PrestaShopLogger::addLog('Callback data: ' . print_r($_REQUEST, true), 4);
 
         $this->context->smarty->assign('error_message', $this->module->l($message));
+
+		if ($this->context->customer->is_guest)
+		{
+			$this->context->smarty->assign(array(
+				'id_order'           => $this->module->currentOrder,
+				'reference_order'    => $this->module->currentOrderReference,
+				'id_order_formatted' => sprintf('#%06d', $this->module->currentOrder),
+				'email' => $this->context->customer->email
+			));
+			/* If guest we clear the cookie for security reason */
+			$this->context->customer->mylogout();
+		}
+
         $this->setTemplate('payment_error.tpl');
 
         parent::display();

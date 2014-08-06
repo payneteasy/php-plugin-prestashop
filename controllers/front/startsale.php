@@ -44,6 +44,7 @@ class PayneteasyStartsaleModuleFrontController extends ModuleFrontController
         }
         catch (Exception $ex)
         {
+            $this->createOrderWithErrorPayment($prestashop_cart, $ex->getMessage());
             return $this->displayTechnicalError($ex);
         }
 
@@ -65,6 +66,25 @@ class PayneteasyStartsaleModuleFrontController extends ModuleFrontController
     }
 
     /**
+     * Creates order for cart if payment started with error.
+     *
+     * @param       Cart        $prestashop_cart        Prestashop cart object.
+     */
+    protected function createOrderWithErrorPayment(Cart $prestashop_cart, $order_comment)
+    {
+        $db = Db::getInstance();
+        $prestashop_cart_id = $db->escape($prestashop_cart->id);
+
+        $this->module->validateOrder(
+            $prestashop_cart_id,
+            Configuration::get('PS_OS_ERROR'),
+            0,
+            $this->module->name,
+            $order_comment
+        );
+    }
+
+    /**
      * Displays message about occured technical error.
      *
      * @param       Exception       $ex     Error cause.
@@ -73,6 +93,17 @@ class PayneteasyStartsaleModuleFrontController extends ModuleFrontController
     {
         PrestaShopLogger::addLog((string) $ex, 50);
         $this->context->smarty->assign('error_message', $this->module->l('Technical error occured'));
+
+		if ($this->context->customer->is_guest)
+		{
+			$this->context->smarty->assign(array(
+				'reference_order'   => $this->module->currentOrderReference,
+				'email'             => $this->context->customer->email
+			));
+			/* If guest we clear the cookie for security reason */
+			$this->context->customer->mylogout();
+		}
+
         $this->setTemplate('payment_error.tpl');
 
         parent::display();

@@ -3,13 +3,13 @@
 1. Перейдите в панель администрирования Prestashop
 2. Перейдите к списку модулей Prestashop (стрелка #1)
 
-    ![go to modules](img/go_to_modules.png)
+    ![go to modules](../img/go_to_modules.png)
 3. Откройте страницу с настройками модуля
     1. Введите запрос "payneteasy" в строку поиска модулей (стрелка #1)
     2. Перейдите на страницу с настройками модуля нажав кнопку "Configure" (стрелка #2)
 
-    ![go to settings](img/go_to_settings.png)
+    ![go to settings](../img/go_to_settings.png)
 
 4. Заполните настройки модуля и сохраните настройки (стрелка #1)
 
-    ![save settings](img/save_settings.png)
+    ![save settings](../img/save_settings.png)

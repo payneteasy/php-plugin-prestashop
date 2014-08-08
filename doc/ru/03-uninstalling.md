@@ -3,10 +3,10 @@
 1. Перейдите в панель администрирования Prestashop
 2. Перейдите к списку модулей Prestashop (стрелка #1)
 
-    ![go to modules](img/go_to_modules.png)
+    ![go to modules](../img/go_to_modules.png)
 3. Удалите модуль
     1. Введите запрос "payneteasy" в строку поиска модулей (стрелка #1)
     2. Раскройте список действий для модуля (стрелка #2)
     2. Удалите модуль (стрелка #3)
 
-    ![delete module](img/delete_module.png)
+    ![delete module](../img/delete_module.png)

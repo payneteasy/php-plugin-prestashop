@@ -38,6 +38,12 @@ class PayneteasyFinishsaleModuleFrontController extends ModuleFrontController
         try
         {
             $this->validatePaymentData($prestashop_cart, $paynet_response);
+
+            if ($prestashop_cart->orderExists())
+            {
+                $this->successRedirect();
+            }
+
             $paynet_response = $payment_aggregate->finishSale($prestashop_cart, $paynet_response);
         }
         catch (Exception $ex)
@@ -97,7 +103,7 @@ class PayneteasyFinishsaleModuleFrontController extends ModuleFrontController
     {
         $order_comment = $paynet_response->getStatus();
 
-        if (!is_null($order_comment))
+        if (!is_null($error_message))
         {
             $order_comment .= ": {$error_message}";
         }

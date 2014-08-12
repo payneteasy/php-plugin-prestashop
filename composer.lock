@@ -4,7 +4,7 @@
         "Read more about it at http://getcomposer.org/doc/01-basic-usage.md#composer-lock-the-lock-file",
         "This file is @generated automatically"
     ],
-    "hash": "5d39afa45610114fd4f0ab8e1a39918f",
+    "hash": "5615d5a6ac253d92f0e02cbc38aeafe3",
     "packages": [
         {
             "name": "payneteasy/php-library-payneteasy-api",
@@ -12,12 +12,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/payneteasy/php-library-payneteasy-api.git",
-                "reference": "a8f2dccd60c0274e341cc48e8d4c734b42e6f070"
+                "reference": "838815c6ccf19e28c9286522cfd530f35f4fa427"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/payneteasy/php-library-payneteasy-api/zipball/a8f2dccd60c0274e341cc48e8d4c734b42e6f070",
-                "reference": "a8f2dccd60c0274e341cc48e8d4c734b42e6f070",
+                "url": "https://api.github.com/repos/payneteasy/php-library-payneteasy-api/zipball/838815c6ccf19e28c9286522cfd530f35f4fa427",
+                "reference": "838815c6ccf19e28c9286522cfd530f35f4fa427",
                 "shasum": ""
             },
             "require": {
@@ -57,7 +57,7 @@
                 "payment",
                 "payneteasy"
             ],
-            "time": "2013-10-23 16:29:18"
+            "time": "2014-08-12 12:30:19"
         }
     ],
     "packages-dev": [],

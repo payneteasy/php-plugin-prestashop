@@ -11,11 +11,13 @@ use PaynetEasy\PaynetEasyApi\PaymentData\BillingAddress;
 use PaynetEasy\PaynetEasyApi\PaymentData\QueryConfig;
 use PaynetEasy\PaynetEasyApi\PaymentProcessor;
 use PaynetEasy\PaynetEasyApi\Transport\CallbackResponse;
+use PaynetEasy\PaynetEasyApi\Util\RegionFinder;
 
 use Module;
 use Cart;
 use Address;
 use Country;
+use State;
 use Customer;
 use Shop;
 use Currency;
@@ -172,7 +174,10 @@ class PaymentAggregate
         $prestashop_address = new Address(intval($prestashop_cart->id_address_invoice));
         $prestashop_country = new Country(intval($prestashop_address->id_country));
 
-        if (Country::containsStates($prestashop_address->id_country))
+        // In Prestashop to many countries has states.
+        // PaynetEasy API requires state code only for some countries.
+        if (    RegionFinder::hasStates($prestashop_country->iso_code)
+            &&  Country::containsStates($prestashop_address->id_country))
         {
             $prestashop_state = new State($prestashop_address->id_state);
             $paynet_address->setState($prestashop_state->iso_code);

@@ -27,7 +27,7 @@ This module allows processing payment via [Merchant PaynetEasy API](http://wiki.
 
 ### Bulding package manually
 1. [Install composer](http://getcomposer.org/doc/00-intro.md), if it is not installed
-2. Clone module source code from git repository: `composer create-project payneteasy/php-plugin-prestashop --stability=dev --prefer-dist`
+2. Clone module source code: `composer create-project payneteasy/php-plugin-prestashop --stability=dev --prefer-dist`
 3. Go to module source code directory: `cd php-plugin-prestashop`
 4. Pack the module into archiver: `composer archive --format=zip`
 

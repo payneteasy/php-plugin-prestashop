@@ -19,11 +19,11 @@ This module allows processing payment via [Merchant PaynetEasy API](http://wiki.
 
 ## Steps
 
-1. Install prestashop 1.6.1.24
-2. Transfer controllers and modules folders to root directory of installed Prestashop
-3. Advanced Parameters > Performance turn off cache and template completion, enable Disable all overrides setting.
-4.Install and setup paynet module(Modules and Services > Modules and Services).
-5.Clear product catalog(Catalog > Products) and add new via Add new product button. Do not forget to setup quantity and price.
+* Install prestashop 1.6.1.24
+* Transfer controllers and modules folders to root directory of installed Prestashop
+* Advanced Parameters > Performance turn off cache and template completion, enable Disable all overrides setting.
+* Install and setup paynet module(Modules and Services > Modules and Services).
+* Clear product catalog(Catalog > Products) and add new via Add new product button. Do not forget to setup quantity and price.
 
 ## System Requirements
 

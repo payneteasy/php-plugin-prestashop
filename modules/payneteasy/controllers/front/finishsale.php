@@ -169,12 +169,53 @@ class PayneteasyFinishsaleModuleFrontController extends ModuleFrontController
      */
     protected function createOrderWithSuccessPayment(Cart $prestashop_cart, CallbackResponse $paynet_response)
     {
+        // The order is created with the amount sent to the gateway: if the cart was
+        // changed after the payment was started, PrestaShop marks the order as a payment error.
         $this->createOrder(
             $prestashop_cart,
             $paynet_response,
             Configuration::get('PS_OS_PAYMENT'),
-            $prestashop_cart->getOrderTotal()
+            $this->getPaidAmount($prestashop_cart, $paynet_response)
         );
+    }
+
+    /**
+     * Amount sent to the gateway for this payment, 0 if the currency has changed.
+     *
+     * @param       Cart                    $prestashop_cart        Prestashop cart object.
+     * @param       CallbackResponse        $paynet_response        PaynetEasy payment response.
+     *
+     * @return      float
+     */
+    protected function getPaidAmount(Cart $prestashop_cart, CallbackResponse $paynet_response)
+    {
+        Payneteasy::ensurePaymentColumns();
+
+        $row = Db::getInstance()->getRow('
+            SELECT `amount`, `currency` FROM `' . _DB_PREFIX_ . 'paynet_payments`
+            WHERE `id_paynet_payment` = ' . (int) $paynet_response->getPaymentPaynetId() . '
+              AND `id_prestashop_cart` = ' . (int) $prestashop_cart->id
+        );
+
+        $currency = Currency::getCurrencyInstance($prestashop_cart->id_currency)->iso_code;
+
+        if (empty($row))
+        {
+            return 0;
+        }
+
+        // Payment started before the update: the amount was not saved
+        if ($row['amount'] === null)
+        {
+            return (float) $prestashop_cart->getOrderTotal();
+        }
+
+        if (strcasecmp((string) $row['currency'], (string) $currency) !== 0)
+        {
+            return 0;
+        }
+
+        return (float) $row['amount'];
     }
 
     /**

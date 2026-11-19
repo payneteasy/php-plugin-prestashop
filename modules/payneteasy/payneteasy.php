@@ -26,7 +26,7 @@ class PaynetEasy extends PaymentModule
     {
         $this->name            = 'payneteasy';
         $this->tab             = 'payments_gateways';
-        $this->version         = '1.1.0';
+        $this->version         = '1.1.1';
         $this->author          = 'Artem Ponomarenko';
         $this->currencies_mode = 'radio';
         $this->submit_action   = 'submit_' . $this->name;
@@ -159,6 +159,8 @@ class PaynetEasy extends PaymentModule
 			`id_paynet_payment` int(10) unsigned NOT NULL,
 			`id_prestashop_cart` int(10) unsigned NOT NULL,
 			`id_prestashop_order` int(10) unsigned,
+			`amount` decimal(20,2) DEFAULT NULL,
+			`currency` char(3) DEFAULT NULL,
 			PRIMARY KEY (`id_paynet_payment`),
             INDEX (`id_prestashop_cart`),
             INDEX (`id_prestashop_order`)
@@ -349,4 +351,38 @@ class PaynetEasy extends PaymentModule
         $helper->fields_value[$config_key] = Configuration::get($config_key);
     }
 
+
+    /**
+     * Adds the amount and currency columns to tables created by earlier versions.
+     */
+    public static function ensurePaymentColumns()
+    {
+        static $checked = false;
+
+        if ($checked)
+        {
+            return;
+        }
+
+        $db      = Db::getInstance();
+        $table   = _DB_PREFIX_ . 'paynet_payments';
+        $columns = array();
+
+        foreach ((array) $db->executeS('SHOW COLUMNS FROM `' . $table . '`') as $row)
+        {
+            $columns[] = $row['Field'];
+        }
+
+        if (!in_array('amount', $columns))
+        {
+            $db->execute('ALTER TABLE `' . $table . '` ADD `amount` decimal(20,2) DEFAULT NULL');
+        }
+
+        if (!in_array('currency', $columns))
+        {
+            $db->execute('ALTER TABLE `' . $table . '` ADD `currency` char(3) DEFAULT NULL');
+        }
+
+        $checked = true;
+    }
 }

@@ -78,9 +78,8 @@ class PayneteasyFinishsaleModuleFrontController extends ModuleFrontController
             throw new Exception('Can not found cart with given id.');
         }
 
-        $db = Db::getInstance();
-        $paynet_payment_id = $db->escape($paynet_response->getPaymentPaynetId());
-        $prestashop_cart_id = $db->escape($prestashop_cart->id);
+        $paynet_payment_id = (int) $paynet_response->getPaymentPaynetId();
+        $prestashop_cart_id = (int) $prestashop_cart->id;
 
         $saved_paynet_payment = Db::getInstance()->getValue("
             SELECT * FROM `" . _DB_PREFIX_ . "paynet_payments`
@@ -153,8 +152,8 @@ class PayneteasyFinishsaleModuleFrontController extends ModuleFrontController
         $order_comment = null)
     {
         $db = Db::getInstance();
-        $paynet_payment_id = $db->escape($paynet_response->getPaymentPaynetId());
-        $prestashop_cart_id = $db->escape($prestashop_cart->id);
+        $paynet_payment_id = (int) $paynet_response->getPaymentPaynetId();
+        $prestashop_cart_id = (int) $prestashop_cart->id;
 
         $this->module->validateOrder(
             $prestashop_cart_id,

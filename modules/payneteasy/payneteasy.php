@@ -26,7 +26,7 @@ class PaynetEasy extends PaymentModule
     {
         $this->name            = 'payneteasy';
         $this->tab             = 'payments_gateways';
-        $this->version         = '1.0.0';
+        $this->version         = '1.1.0';
         $this->author          = 'Artem Ponomarenko';
         $this->currencies_mode = 'radio';
         $this->submit_action   = 'submit_' . $this->name;

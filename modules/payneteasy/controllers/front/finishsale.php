@@ -97,10 +97,10 @@ class PayneteasyFinishsaleModuleFrontController extends ModuleFrontController
         $paynet_payment_id = (int) $paynet_response->getPaymentPaynetId();
         $prestashop_cart_id = (int) $prestashop_cart->id;
 
+        // Db::getValue() adds LIMIT 1 itself
         $saved_paynet_payment = Db::getInstance()->getValue("
-            SELECT * FROM `" . _DB_PREFIX_ . "paynet_payments`
+            SELECT `id_paynet_payment` FROM `" . _DB_PREFIX_ . "paynet_payments`
             WHERE `id_paynet_payment` = {$paynet_payment_id} AND `id_prestashop_cart` = {$prestashop_cart_id}
-            LIMIT 1;
         ");
 
         if (empty($saved_paynet_payment))

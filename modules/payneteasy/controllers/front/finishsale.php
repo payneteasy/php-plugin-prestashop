@@ -21,6 +21,32 @@ class PayneteasyFinishsaleModuleFrontController extends ModuleFrontController
     }
 
     /**
+     * The gateway returns the customer with a cross-site POST, which carries no
+     * SameSite=Lax shop cookie: the customer would lose the cart session and land
+     * on the login page. Re-issue the request as a same-site GET (with the
+     * gateway fields in the query) before the shop starts a new session.
+     */
+    public function init()
+    {
+        if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST))
+        {
+            $query = array_merge($_GET, $_POST);
+            unset($query['fc'], $query['module'], $query['controller']);
+
+            // Do not write the empty session cookie of this request over the customer's one
+            if (isset($this->context->cookie) && method_exists($this->context->cookie, 'disallowWriting'))
+            {
+                $this->context->cookie->disallowWriting();
+            }
+
+            header('Location: ' . $this->context->link->getModuleLink('payneteasy', 'finishsale', $query, true), true, 303);
+            exit;
+        }
+
+        parent::init();
+    }
+
+    /**
      * Validates response from PaynetEasy server.
      *
      * Creates the order if the payment was successful

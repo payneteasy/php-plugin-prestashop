@@ -156,7 +156,7 @@ class PaynetEasy extends PaymentModule
     {
 		return Db::getInstance()->Execute('
 		CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'paynet_payments` (
-			`id_paynet_payment` int(10) unsigned NOT NULL,
+			`id_paynet_payment` bigint(20) unsigned NOT NULL,
 			`id_prestashop_cart` int(10) unsigned NOT NULL,
 			`id_prestashop_order` int(10) unsigned,
 			`amount` decimal(20,2) DEFAULT NULL,
@@ -371,6 +371,12 @@ class PaynetEasy extends PaymentModule
         foreach ((array) $db->executeS('SHOW COLUMNS FROM `' . $table . '`') as $row)
         {
             $columns[] = $row['Field'];
+
+            // Gateway ids do not fit into int: widen the column of tables created by older versions
+            if ('id_paynet_payment' == $row['Field'] && 0 !== stripos($row['Type'], 'bigint'))
+            {
+                $db->execute('ALTER TABLE `' . $table . '` MODIFY `id_paynet_payment` bigint(20) unsigned NOT NULL');
+            }
         }
 
         if (!in_array('amount', $columns))

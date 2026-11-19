@@ -35,9 +35,19 @@ class PayneteasyFinishsaleModuleFrontController extends ModuleFrontController
         $prestashop_cart = new Cart(Tools::getValue('id_cart'));
         $paynet_response = new CallbackResponse($_REQUEST);
 
+        // The return link carries the cart secure key: only the cart owner can finish the sale
         try
         {
             $this->validatePaymentData($prestashop_cart, $paynet_response);
+        }
+        catch (Exception $ex)
+        {
+            $this->logException($ex);
+            return $this->displayError('Invalid payment data received.');
+        }
+
+        try
+        {
 
             if ($prestashop_cart->orderExists())
             {
@@ -74,6 +84,12 @@ class PayneteasyFinishsaleModuleFrontController extends ModuleFrontController
     protected function validatePaymentData(Cart $prestashop_cart, CallbackResponse $paynet_response)
     {
         if (!Validate::isLoadedObject($prestashop_cart))
+        {
+            throw new Exception('Can not found cart with given id.');
+        }
+
+        $key = (string) Tools::getValue('key');
+        if ($key === '' || !hash_equals((string) $prestashop_cart->secure_key, $key))
         {
             throw new Exception('Can not found cart with given id.');
         }

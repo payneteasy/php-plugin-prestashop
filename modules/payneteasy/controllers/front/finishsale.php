@@ -21,6 +21,32 @@ class PayneteasyFinishsaleModuleFrontController extends ModuleFrontController
     }
 
     /**
+     * The gateway returns the customer with a cross-site POST, which carries no
+     * SameSite=Lax shop cookie: the customer would lose the cart session and land
+     * on the login page. Re-issue the request as a same-site GET (with the
+     * gateway fields in the query) before the shop starts a new session.
+     */
+    public function init()
+    {
+        if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST))
+        {
+            $query = array_merge($_GET, $_POST);
+            unset($query['fc'], $query['module'], $query['controller']);
+
+            // Do not write the empty session cookie of this request over the customer's one
+            if (isset($this->context->cookie) && method_exists($this->context->cookie, 'disallowWriting'))
+            {
+                $this->context->cookie->disallowWriting();
+            }
+
+            header('Location: ' . $this->context->link->getModuleLink('payneteasy', 'finishsale', $query, true), true, 303);
+            exit;
+        }
+
+        parent::init();
+    }
+
+    /**
      * Validates response from PaynetEasy server.
      *
      * Creates the order if the payment was successful
@@ -35,9 +61,19 @@ class PayneteasyFinishsaleModuleFrontController extends ModuleFrontController
         $prestashop_cart = new Cart(Tools::getValue('id_cart'));
         $paynet_response = new CallbackResponse($_REQUEST);
 
+        // The return link carries the cart secure key: only the cart owner can finish the sale
         try
         {
             $this->validatePaymentData($prestashop_cart, $paynet_response);
+        }
+        catch (Exception $ex)
+        {
+            $this->logException($ex);
+            return $this->displayError('Invalid payment data received.');
+        }
+
+        try
+        {
 
             if ($prestashop_cart->orderExists())
             {
@@ -78,14 +114,19 @@ class PayneteasyFinishsaleModuleFrontController extends ModuleFrontController
             throw new Exception('Can not found cart with given id.');
         }
 
-        $db = Db::getInstance();
-        $paynet_payment_id = $db->escape($paynet_response->getPaymentPaynetId());
-        $prestashop_cart_id = $db->escape($prestashop_cart->id);
+        $key = (string) Tools::getValue('key');
+        if ($key === '' || !hash_equals((string) $prestashop_cart->secure_key, $key))
+        {
+            throw new Exception('Can not found cart with given id.');
+        }
 
+        $paynet_payment_id = (int) $paynet_response->getPaymentPaynetId();
+        $prestashop_cart_id = (int) $prestashop_cart->id;
+
+        // Db::getValue() adds LIMIT 1 itself
         $saved_paynet_payment = Db::getInstance()->getValue("
-            SELECT * FROM `" . _DB_PREFIX_ . "paynet_payments`
+            SELECT `id_paynet_payment` FROM `" . _DB_PREFIX_ . "paynet_payments`
             WHERE `id_paynet_payment` = {$paynet_payment_id} AND `id_prestashop_cart` = {$prestashop_cart_id}
-            LIMIT 1;
         ");
 
         if (empty($saved_paynet_payment))
@@ -153,8 +194,8 @@ class PayneteasyFinishsaleModuleFrontController extends ModuleFrontController
         $order_comment = null)
     {
         $db = Db::getInstance();
-        $paynet_payment_id = $db->escape($paynet_response->getPaymentPaynetId());
-        $prestashop_cart_id = $db->escape($prestashop_cart->id);
+        $paynet_payment_id = (int) $paynet_response->getPaymentPaynetId();
+        $prestashop_cart_id = (int) $prestashop_cart->id;
 
         $this->module->validateOrder(
             $prestashop_cart_id,

@@ -59,9 +59,14 @@ class PayneteasyStartsaleModuleFrontController extends ModuleFrontController
      */
     protected function savePaynetPayment(Response $paynet_response, Cart $prestashop_cart)
     {
+        Payneteasy::ensurePaymentColumns();
+
+        // The amount and currency sent to the gateway: the order is created with them
         Db::getInstance()->insert('paynet_payments', array(
-            'id_paynet_payment'  => $paynet_response->getPaymentPaynetId(),
-            'id_prestashop_cart' => $prestashop_cart->id
+            'id_paynet_payment'  => (int) $paynet_response->getPaymentPaynetId(),
+            'id_prestashop_cart' => (int) $prestashop_cart->id,
+            'amount'             => number_format((float) $prestashop_cart->getOrderTotal(), 2, '.', ''),
+            'currency'           => pSQL(Currency::getCurrencyInstance($prestashop_cart->id_currency)->iso_code),
         ));
     }
 

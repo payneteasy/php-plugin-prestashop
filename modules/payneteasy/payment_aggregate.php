@@ -52,13 +52,14 @@ class PaymentAggregate
      *
      * @param       Cart        $prestashop_cart        Prestashop cart.
      * @param       string      $return_url             Url for order processing after payment.
+     * @param       string      $callback_url           Url for the gateway server callback.
      *
      * @return      Response        Gateway response object.
      */
-    public function startSale(Cart $prestashop_cart, $return_url)
+    public function startSale(Cart $prestashop_cart, $return_url, $callback_url = null)
     {
         $payment_processor  = new PaymentProcessor;
-        $paynet_transaction = $this->getPaynetTransaction($prestashop_cart, $return_url);
+        $paynet_transaction = $this->getPaynetTransaction($prestashop_cart, $return_url, $callback_url);
 
         return $payment_processor->executeQuery('sale-form', $paynet_transaction);
     }
@@ -70,13 +71,30 @@ class PaymentAggregate
      *
      * @param       Cart                    $prestashop_cart        Prestashop cart.
      * @param       CallbackResponse        $callback               Callback object.
+     * @param       string                  $paynet_payment_id      Gateway payment id saved when the payment was started.
+     * @param       float                   $amount                 Amount sent to the gateway (cart total if null).
+     * @param       boolean                 $server_callback        True for the gateway server callback, false for the customer return.
      *
      * @return      CallbackResponse        Callback object.
      */
-    public function finishSale(Cart $prestashop_cart, CallbackResponse $callback)
+    public function finishSale(Cart $prestashop_cart, CallbackResponse $callback, $paynet_payment_id, $amount = null, $server_callback = false)
     {
         $payment_processor  = new PaymentProcessor;
         $paynet_transaction = $this->getPaynetTransaction($prestashop_cart);
+
+        // The callback is compared with the data of the started payment, not with the request
+        $paynet_transaction->getPayment()->setPaynetId($paynet_payment_id);
+
+        if (!is_null($amount))
+        {
+            $paynet_transaction->getPayment()->setAmount($amount);
+        }
+
+        if ($server_callback)
+        {
+            return $payment_processor->processPaynetEasyCallback($callback, $paynet_transaction);
+        }
+
         $paynet_transaction->setStatus(PaymentTransaction::STATUS_PROCESSING);
 
         return $payment_processor->processCustomerReturn($callback, $paynet_transaction);
@@ -87,16 +105,17 @@ class PaymentAggregate
      *
      * @param       Cart        $prestashop_cart        Prestashop cart.
      * @param       string      $return_url             Url for final payment processing.
+     * @param       string      $callback_url           Url for the gateway server callback.
      *
      * @return      PaynetTransaction       PaynetEasy payment transaction
      */
-    protected function getPaynetTransaction(Cart $prestashop_cart, $return_url = null)
+    protected function getPaynetTransaction(Cart $prestashop_cart, $return_url = null, $callback_url = null)
     {
         $paynet_transaction = new PaymentTransaction;
 
         $paynet_transaction
             ->setPayment($this->getPaynetPayment($prestashop_cart))
-            ->setQueryConfig($this->getQueryConfig($return_url))
+            ->setQueryConfig($this->getQueryConfig($return_url, $callback_url))
         ;
 
         return $paynet_transaction;
@@ -106,10 +125,11 @@ class PaymentAggregate
      * Get PaynetEasy query config object.
      *
      * @param       string      $return_url             Url for final payment processing.
+     * @param       string      $callback_url           Url for the gateway server callback.
      *
      * @return      QueryConfig     PaynetEasy payment transaction
      */
-    protected function getQueryConfig($return_url = null)
+    protected function getQueryConfig($return_url = null, $callback_url = null)
     {
         $query_config = new QueryConfig;
 
@@ -126,7 +146,7 @@ class PaymentAggregate
         {
             $query_config
                 ->setRedirectUrl($return_url)
-                ->setCallbackUrl($return_url)
+                ->setCallbackUrl(Validate::isUrl($callback_url) ? $callback_url : $return_url)
             ;
         }
 
@@ -143,11 +163,6 @@ class PaymentAggregate
     protected function getPaynetPayment(Cart $prestashop_cart)
     {
         $paynet_payment = new Payment;
-
-        if (Tools::getIsset('orderid'))
-        {
-            $paynet_payment->setPaynetId(Tools::getValue('orderid'));
-        }
 
         $paynet_payment
             ->setClientId($prestashop_cart->id)

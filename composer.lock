@@ -8,16 +8,16 @@
     "packages": [
         {
             "name": "payneteasy/php-library-payneteasy-api",
-            "version": "dev-master",
+            "version": "v1.1.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/payneteasy/php-library-payneteasy-api.git",
-                "reference": "1501b4edf04c3edbb7e945ca4aca13c7e7b8b9d7"
+                "reference": "b06d2d98eef246bf516fd1aa4378bdcae8448fd2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/payneteasy/php-library-payneteasy-api/zipball/1501b4edf04c3edbb7e945ca4aca13c7e7b8b9d7",
-                "reference": "1501b4edf04c3edbb7e945ca4aca13c7e7b8b9d7",
+                "url": "https://api.github.com/repos/payneteasy/php-library-payneteasy-api/zipball/b06d2d98eef246bf516fd1aa4378bdcae8448fd2",
+                "reference": "b06d2d98eef246bf516fd1aa4378bdcae8448fd2",
                 "shasum": ""
             },
             "require": {
@@ -28,11 +28,10 @@
                 "phake/phake": "2.3.*",
                 "phpunit/phpunit": "4.7.*"
             },
-            "default-branch": true,
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-master": "1.0.0-dev"
+                    "dev-master": "1.1.x-dev"
                 }
             },
             "autoload": {
@@ -69,10 +68,10 @@
                 "payneteasy"
             ],
             "support": {
-                "source": "https://github.com/payneteasy/php-library-payneteasy-api/tree/master",
+                "source": "https://github.com/payneteasy/php-library-payneteasy-api/tree/v1.1.2",
                 "issues": "https://github.com/payneteasy/php-library-payneteasy-api/issues"
             },
-            "time": "2026-11-18T14:12:24+00:00"
+            "time": "2026-11-25T11:15:36+00:00"
         }
     ],
     "packages-dev": [],

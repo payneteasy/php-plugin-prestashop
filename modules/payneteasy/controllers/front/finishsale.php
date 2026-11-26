@@ -4,6 +4,8 @@ require_once __DIR__ . '/../../payment_aggregate.php';
 
 use PaynetEasy\PaymentAggregate;
 use PaynetEasy\PaynetEasyApi\Transport\CallbackResponse;
+use PaynetEasy\PaynetEasyApi\Exception\PaynetException;
+use PaynetEasy\PaynetEasyApi\Exception\ValidationException;
 
 /**
  * Processes a response from the PaynetEasy server
@@ -25,13 +27,28 @@ class PayneteasyFinishsaleModuleFrontController extends ModuleFrontController
      * SameSite=Lax shop cookie: the customer would lose the cart session and land
      * on the login page. Re-issue the request as a same-site GET (with the
      * gateway fields in the query) before the shop starts a new session.
+     *
+     * The gateway server callback has its own address and is processed at once.
      */
     public function init()
     {
-        if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST))
+        if (    !$this->isServerCallback()
+            &&  isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST))
         {
-            $query = array_merge($_GET, $_POST);
-            unset($query['fc'], $query['module'], $query['controller']);
+            // Only the fields that are checked go to the query: the other gateway
+            // fields (card and customer data) are not needed
+            $request = array_merge($_GET, $_POST);
+            $query   = array();
+
+            foreach (array('id_cart', 'key', 'status', 'orderid', 'paynet-order-id', 'client_orderid', 'merchant_order',
+                           'merchant-order-id', 'control', 'merchant_control', 'amount', 'type',
+                           'error_message', 'error-message', 'error_code', 'error-code') as $field)
+            {
+                if (isset($request[$field]) && is_scalar($request[$field]))
+                {
+                    $query[$field] = (string) $request[$field];
+                }
+            }
 
             // Do not write the empty session cookie of this request over the customer's one
             if (isset($this->context->cookie) && method_exists($this->context->cookie, 'disallowWriting'))
@@ -47,6 +64,16 @@ class PayneteasyFinishsaleModuleFrontController extends ModuleFrontController
     }
 
     /**
+     * True if the request came to the address of the gateway server callback.
+     *
+     * @return      boolean
+     */
+    protected function isServerCallback()
+    {
+        return isset($_GET['callback']) && $_GET['callback'] === '1';
+    }
+
+    /**
      * Validates response from PaynetEasy server.
      *
      * Creates the order if the payment was successful
@@ -54,49 +81,106 @@ class PayneteasyFinishsaleModuleFrontController extends ModuleFrontController
      *
      * If the payment is made with an error,
      * displays an error message.
+     *
+     * The order is created for a final payment result only. If the result
+     * can not be validated or is not final, nothing is created or changed.
      */
     public function display()
     {
         $payment_aggregate = new PaymentAggregate($this->module);
-        $prestashop_cart = new Cart(Tools::getValue('id_cart'));
+        $is_callback = $this->isServerCallback();
+        $id_cart = Tools::getValue('id_cart');
+        $prestashop_cart = new Cart((is_string($id_cart) && ctype_digit($id_cart)) ? (int) $id_cart : 0);
         $paynet_response = new CallbackResponse($_REQUEST);
 
         // The return link carries the cart secure key: only the cart owner can finish the sale
         try
         {
-            $this->validatePaymentData($prestashop_cart, $paynet_response);
+            $paynet_payment = $this->validatePaymentData($prestashop_cart, $paynet_response);
         }
         catch (Exception $ex)
         {
-            $this->logException($ex);
-            return $this->displayError('Invalid payment data received.');
+            $this->logError($ex->getMessage());
+            return $this->displayResult($is_callback, false, 'Invalid payment data received.');
         }
+
+        $error_message = null;
 
         try
         {
-
-            if ($prestashop_cart->orderExists())
+            // The server callback is sent for other operations too: only the sale is processed here
+            if ($is_callback && $paynet_response->getType() !== 'sale')
             {
-                $this->successRedirect();
+                throw new Exception('Not a sale callback');
             }
 
-            $paynet_response = $payment_aggregate->finishSale($prestashop_cart, $paynet_response);
+            $payment_aggregate->finishSale(
+                $prestashop_cart,
+                $paynet_response,
+                $paynet_payment['id_paynet_payment'],
+                $paynet_payment['amount'],
+                $is_callback
+            );
         }
         catch (Exception $ex)
         {
-            $this->logException($ex);
-            $this->createOrderWithErrorPayment($prestashop_cart, $paynet_response, $ex->getMessage());
-            return $this->displayError('Invalid payment data received.');
+            // The library throws the gateway error of a validated callback with the status "error".
+            // Anything else (not validated data, not final status) leaves the cart as it is.
+            if (    !($ex instanceof PaynetException)
+                ||  $ex instanceof ValidationException
+                ||  $paynet_response->getStatus() !== 'error')
+            {
+                $this->logError($ex->getMessage(), $prestashop_cart, $paynet_payment);
+                return $this->displayResult($is_callback, false, 'Payment is not confirmed.');
+            }
+
+            $error_message = $ex->getMessage();
         }
 
-        if (!$paynet_response->isApproved())
+        // Here the payment result is validated and final: approved, declined, filtered or error
+        if (!$this->lockCart($prestashop_cart))
         {
-            $this->createOrderWithErrorPayment($prestashop_cart, $paynet_response);
+            $this->logError('Can not lock the cart', $prestashop_cart, $paynet_payment);
+            return $this->displayResult($is_callback, false, 'Payment is not confirmed.');
+        }
+
+        $prestashop_order_id = $this->getOrderIdByCart($prestashop_cart);
+
+        if ($prestashop_order_id)
+        {
+            if ($paynet_response->isApproved())
+            {
+                $this->recordPaymentForExistingOrder($prestashop_order_id, $prestashop_cart, $paynet_response);
+            }
+        }
+        elseif ($paynet_response->isApproved())
+        {
+            $this->createOrderWithSuccessPayment($prestashop_cart, $paynet_response);
+            $prestashop_order_id = (int) $this->module->currentOrder;
+        }
+        else
+        {
+            $this->createOrderWithErrorPayment($prestashop_cart, $paynet_response, $error_message);
+            $prestashop_order_id = (int) $this->module->currentOrder;
+        }
+
+        $this->unlockCart($prestashop_cart);
+
+        if ($is_callback)
+        {
+            return $this->displayResult(true, true);
+        }
+
+        // The page shows the state of the order: a repeated request changes nothing
+        $prestashop_order = new Order($prestashop_order_id);
+
+        if (    !Validate::isLoadedObject($prestashop_order)
+            ||  (int) $prestashop_order->getCurrentState() === (int) Configuration::get('PS_OS_ERROR'))
+        {
             return $this->displayError('Payment not passed');
         }
 
-        $this->createOrderWithSuccessPayment($prestashop_cart, $paynet_response);
-        $this->successRedirect();
+        $this->successRedirect($prestashop_cart, $prestashop_order_id);
     }
 
     /**
@@ -104,6 +188,8 @@ class PayneteasyFinishsaleModuleFrontController extends ModuleFrontController
      *
      * @param       Cart                    $prestashop_cart        Prestashop cart object.
      * @param       CallbackResponse        $paynet_response        PaynetEasy payment response.
+     *
+     * @return      array           Payment started by the shop for this cart (id_paynet_payment, amount, currency).
      *
      * @throws      Exception       Cart or payment does not exists.
      */
@@ -114,24 +200,144 @@ class PayneteasyFinishsaleModuleFrontController extends ModuleFrontController
             throw new Exception('Can not found cart with given id.');
         }
 
-        $key = (string) Tools::getValue('key');
-        if ($key === '' || !hash_equals((string) $prestashop_cart->secure_key, $key))
+        $key = Tools::getValue('key');
+        if (!is_string($key) || $key === '' || !hash_equals((string) $prestashop_cart->secure_key, $key))
         {
             throw new Exception('Can not found cart with given id.');
         }
 
-        $paynet_payment_id = (int) $paynet_response->getPaymentPaynetId();
+        $paynet_payment_id = $paynet_response->getPaymentPaynetId();
+        if (!is_string($paynet_payment_id) || !ctype_digit($paynet_payment_id) || strlen($paynet_payment_id) > 18)
+        {
+            throw new Exception('Can not found cart with given id.');
+        }
+
+        $paynet_payment_id = (int) $paynet_payment_id;
         $prestashop_cart_id = (int) $prestashop_cart->id;
 
-        // Db::getValue() adds LIMIT 1 itself
-        $saved_paynet_payment = Db::getInstance()->getValue("
-            SELECT `id_paynet_payment` FROM `" . _DB_PREFIX_ . "paynet_payments`
+        Payneteasy::ensurePaymentColumns();
+
+        $saved_paynet_payment = Db::getInstance()->getRow("
+            SELECT `id_paynet_payment`, `amount`, `currency` FROM `" . _DB_PREFIX_ . "paynet_payments`
             WHERE `id_paynet_payment` = {$paynet_payment_id} AND `id_prestashop_cart` = {$prestashop_cart_id}
-        ");
+        ", false);
 
         if (empty($saved_paynet_payment))
         {
             throw new Exception('Can not found cart with given id.');
+        }
+
+        return $saved_paynet_payment;
+    }
+
+    /**
+     * Takes the lock of the cart: the customer return and the server callback
+     * of one payment can come at the same time.
+     *
+     * @param       Cart        $prestashop_cart        Prestashop cart object.
+     *
+     * @return      boolean
+     */
+    protected function lockCart(Cart $prestashop_cart)
+    {
+        return (bool) Db::getInstance()->getValue(
+            "SELECT GET_LOCK('" . $this->getCartLockName($prestashop_cart) . "', 20)",
+            false
+        );
+    }
+
+    /**
+     * Releases the lock of the cart.
+     *
+     * @param       Cart        $prestashop_cart        Prestashop cart object.
+     */
+    protected function unlockCart(Cart $prestashop_cart)
+    {
+        Db::getInstance()->getValue(
+            "SELECT RELEASE_LOCK('" . $this->getCartLockName($prestashop_cart) . "')",
+            false
+        );
+    }
+
+    /**
+     * Name of the database lock of the cart (locks are shared by all databases of the server).
+     *
+     * @param       Cart        $prestashop_cart        Prestashop cart object.
+     *
+     * @return      string
+     */
+    protected function getCartLockName(Cart $prestashop_cart)
+    {
+        return 'pne_' . md5(_DB_NAME_ . '.' . _DB_PREFIX_ . 'cart.' . (int) $prestashop_cart->id);
+    }
+
+    /**
+     * Id of the order created for the cart, read from the database without cache.
+     *
+     * @param       Cart        $prestashop_cart        Prestashop cart object.
+     *
+     * @return      int         Order id, 0 if the cart has no order.
+     */
+    protected function getOrderIdByCart(Cart $prestashop_cart)
+    {
+        return (int) Db::getInstance()->getValue('
+            SELECT `id_order` FROM `' . _DB_PREFIX_ . 'orders`
+            WHERE `id_cart` = ' . (int) $prestashop_cart->id . '
+            ORDER BY `id_order`
+        ', false);
+    }
+
+    /**
+     * Records an approved payment that came after the order of the cart was created
+     * with a payment error. An order in any other state is not changed.
+     *
+     * @param       int                     $prestashop_order_id    Prestashop order id.
+     * @param       Cart                    $prestashop_cart        Prestashop cart object.
+     * @param       CallbackResponse        $paynet_response        PaynetEasy payment response.
+     */
+    protected function recordPaymentForExistingOrder($prestashop_order_id, Cart $prestashop_cart, CallbackResponse $paynet_response)
+    {
+        $prestashop_order = new Order((int) $prestashop_order_id);
+        $paynet_payment_id = (int) $paynet_response->getPaymentPaynetId();
+
+        if (    !Validate::isLoadedObject($prestashop_order)
+            ||  $prestashop_order->module !== $this->module->name
+            ||  (int) $prestashop_order->getCurrentState() !== (int) Configuration::get('PS_OS_ERROR'))
+        {
+            return;
+        }
+
+        // This payment is already recorded for the order
+        foreach ($prestashop_order->getOrderPaymentCollection() as $order_payment)
+        {
+            if ((string) $order_payment->transaction_id === (string) $paynet_payment_id && (float) $order_payment->amount > 0)
+            {
+                return;
+            }
+        }
+
+        $paid_amount = $this->getPaidAmount($prestashop_cart, $paynet_response);
+
+        if ($paid_amount <= 0 || !$prestashop_order->addOrderPayment($paid_amount, null, (string) $paynet_payment_id))
+        {
+            $this->logError("Approved payment was not recorded for order {$prestashop_order->id}", $prestashop_cart, array('id_paynet_payment' => $paynet_payment_id));
+            return;
+        }
+
+        Db::getInstance()->update(
+            'paynet_payments',
+            array('id_prestashop_order' => (int) $prestashop_order->id),
+            "`id_paynet_payment` = {$paynet_payment_id} AND `id_prestashop_cart` = " . (int) $prestashop_cart->id
+        );
+
+        // The order becomes paid only if the whole order amount was paid
+        if (abs($paid_amount - (float) $prestashop_order->total_paid) < 0.005)
+        {
+            $prestashop_order->setCurrentState((int) Configuration::get('PS_OS_PAYMENT'));
+        }
+        else
+        {
+            $this->logError("Approved payment amount differs from the total of order {$prestashop_order->id}", $prestashop_cart, array('id_paynet_payment' => $paynet_payment_id));
         }
     }
 
@@ -244,7 +450,10 @@ class PayneteasyFinishsaleModuleFrontController extends ModuleFrontController
             $payment_amount,
             $this->module->name,
             $order_comment,
-            array('transaction_id' => $paynet_payment_id)
+            array('transaction_id' => $paynet_payment_id),
+            null,
+            false,
+            $prestashop_cart->secure_key
         );
 
         $db->update(
@@ -256,27 +465,74 @@ class PayneteasyFinishsaleModuleFrontController extends ModuleFrontController
 
     /**
      * Redirects customer to result page with success message.
+     *
+     * @param       Cart        $prestashop_cart            Prestashop cart object.
+     * @param       int         $prestashop_order_id        Prestashop order id.
      */
-    protected function successRedirect()
+    protected function successRedirect(Cart $prestashop_cart, $prestashop_order_id)
     {
         $redirect_url = $this->context->link->getPageLink('order-confirmation', true, null, array(
-            'id_cart'   => $this->context->cart->id,
+            'id_cart'   => $prestashop_cart->id,
             'id_module' => $this->module->id,
-            'id_order'  => $this->module->currentOrder,
-            'key'       => $this->context->cart->secure_key
+            'id_order'  => $prestashop_order_id,
+            'key'       => $prestashop_cart->secure_key
         ));
 
         Tools::redirectLink($redirect_url);
     }
 
     /**
-     * Log exception.
+     * Writes a short error message to the shop log (no request data).
      *
-     * @param       Exception       $ex     Exception to log.
+     * @param       string      $message                Error text.
+     * @param       Cart        $prestashop_cart        Prestashop cart object.
+     * @param       array       $paynet_payment         Payment started by the shop.
      */
-    protected function logException(Exception $ex)
+    protected function logError($message, $prestashop_cart = null, $paynet_payment = null)
     {
-        PrestaShopLogger::addLog((string) $ex, 50);
+        $prefix = 'PaynetEasy';
+
+        if ($this->isServerCallback())
+        {
+            $prefix .= ' callback';
+        }
+
+        if ($prestashop_cart && $prestashop_cart->id)
+        {
+            $prefix .= ', cart ' . (int) $prestashop_cart->id;
+        }
+
+        if (!empty($paynet_payment['id_paynet_payment']))
+        {
+            $prefix .= ', payment ' . (int) $paynet_payment['id_paynet_payment'];
+        }
+
+        $message = preg_replace('/[^\x20-\x7E]+|[<>{}]/', ' ', (string) $message);
+
+        PrestaShopLogger::addLog($prefix . ': ' . Tools::substr($message, 0, 500), 3);
+    }
+
+    /**
+     * Answers the gateway server or shows the error page to the customer.
+     *
+     * @param       boolean     $is_callback        True for the gateway server callback.
+     * @param       boolean     $processed          True if the payment result was processed.
+     * @param       string      $message            Error message for the customer.
+     */
+    protected function displayResult($is_callback, $processed, $message = 'Technical error occured')
+    {
+        if (!$is_callback)
+        {
+            return $this->displayError($message);
+        }
+
+        if (!$processed)
+        {
+            header('HTTP/1.1 400 Bad Request');
+        }
+
+        header('Content-Type: text/plain; charset=utf-8');
+        die($processed ? 'OK' : 'ERROR');
     }
 
     /**
@@ -286,8 +542,6 @@ class PayneteasyFinishsaleModuleFrontController extends ModuleFrontController
      */
     protected function displayError($message = 'Technical error occured')
     {
-        PrestaShopLogger::addLog('Callback data: ' . print_r($_REQUEST, true), 4);
-
         $this->context->smarty->assign('error_message', $this->module->l($message));
 
 		if ($this->context->customer->is_guest)
@@ -298,13 +552,26 @@ class PayneteasyFinishsaleModuleFrontController extends ModuleFrontController
 				'id_order_formatted' => sprintf('#%06d', $this->module->currentOrder),
 				'email' => $this->context->customer->email
 			));
-			/* If guest we clear the cookie for security reason */
-			$this->context->customer->mylogout();
+
+			/* If guest we clear the cookie for security reason (only when the order was created) */
+			if ($this->module->currentOrder)
+			{
+				$this->context->customer->mylogout();
+			}
 		}
+
+        // PrestaShop 1.7+ has no templates of the 1.6 theme: the message is shown
+        // by the shop itself on the order page
+        if (version_compare(_PS_VERSION_, '1.7', '>=') && method_exists($this, 'redirectWithNotifications'))
+        {
+            $message = $this->context->smarty->getTemplateVars('error_message');
+            $this->errors[] = is_string($message) && $message !== '' ? $message : $this->module->l('Technical error occured');
+            $this->redirectWithNotifications($this->context->link->getPageLink('order', true));
+            return;
+        }
 
         $this->setTemplate('payment_error.tpl');
 
         parent::display();
     }
 }
-

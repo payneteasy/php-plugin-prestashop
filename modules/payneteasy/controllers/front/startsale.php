@@ -34,21 +34,78 @@ class PayneteasyStartsaleModuleFrontController extends ModuleFrontController
     {
         $payment_aggregate = new PaymentAggregate($this->module);
         $prestashop_cart = $this->context->cart;
+
+        // The payment is started only for the checkout cart of the current customer
+        if (!$this->isCartReadyForPayment($prestashop_cart))
+        {
+            Tools::redirect('index.php?controller=order&step=1');
+            return;
+        }
+
+        $return_params = array('id_cart' => $prestashop_cart->id, 'key' => $prestashop_cart->secure_key);
         $return_url = $this->context->link
-            ->getModuleLink('payneteasy', 'finishsale', array('id_cart' => $prestashop_cart->id, 'key' => $prestashop_cart->secure_key), true);
+            ->getModuleLink('payneteasy', 'finishsale', $return_params, true);
+        // The gateway server calls its own address: it is answered at once, without a redirect
+        $callback_url = $this->context->link
+            ->getModuleLink('payneteasy', 'finishsale', $return_params + array('callback' => 1), true);
 
         try
         {
-            $paynet_response = $payment_aggregate->startSale($prestashop_cart, $return_url);
+            $paynet_response = $payment_aggregate->startSale($prestashop_cart, $return_url, $callback_url);
             $this->savePaynetPayment($paynet_response, $prestashop_cart);
         }
         catch (Exception $ex)
         {
-            $this->createOrderWithErrorPayment($prestashop_cart, $ex->getMessage());
+            // Nothing was paid: the cart is kept, so the customer can try again
             return $this->displayTechnicalError($ex);
         }
 
         Tools::redirectLink($paynet_response->getRedirectUrl());
+    }
+
+    /**
+     * Checks that the cart belongs to the current customer, can be ordered
+     * and that this payment module is available.
+     *
+     * @param       Cart        $prestashop_cart        Prestashop cart object.
+     *
+     * @return      boolean
+     */
+    protected function isCartReadyForPayment($prestashop_cart)
+    {
+        if (    !Validate::isLoadedObject($prestashop_cart)
+            ||  !$prestashop_cart->id_customer
+            ||  !$prestashop_cart->id_address_delivery
+            ||  !$prestashop_cart->id_address_invoice
+            ||  !Validate::isLoadedObject($this->context->customer)
+            ||  (int) $prestashop_cart->id_customer !== (int) $this->context->customer->id
+            ||  !$prestashop_cart->nbProducts()
+            ||  $prestashop_cart->orderExists())
+        {
+            return false;
+        }
+
+        if (!$this->module->active || !Module::isEnabled($this->module->name))
+        {
+            return false;
+        }
+
+        // PrestaShop 1.7+ lists the payment modules by a hook this module does not use
+        if (version_compare(_PS_VERSION_, '1.7', '>='))
+        {
+            return true;
+        }
+
+        // Country, currency and customer group restrictions of the module
+        foreach (Module::getPaymentModules() as $payment_module)
+        {
+            if ($payment_module['name'] == $this->module->name)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -71,43 +128,37 @@ class PayneteasyStartsaleModuleFrontController extends ModuleFrontController
     }
 
     /**
-     * Creates order for cart if payment started with error.
-     *
-     * @param       Cart        $prestashop_cart        Prestashop cart object.
-     */
-    protected function createOrderWithErrorPayment(Cart $prestashop_cart, $order_comment)
-    {
-        $db = Db::getInstance();
-        $prestashop_cart_id = $db->escape($prestashop_cart->id);
-
-        $this->module->validateOrder(
-            $prestashop_cart_id,
-            Configuration::get('PS_OS_ERROR'),
-            0,
-            $this->module->name,
-            $order_comment
-        );
-    }
-
-    /**
      * Displays message about occured technical error.
      *
      * @param       Exception       $ex     Error cause.
      */
     protected function displayTechnicalError(Exception $ex)
     {
-        PrestaShopLogger::addLog((string) $ex, 50);
+        PrestaShopLogger::addLog(
+            'PaynetEasy: payment for cart ' . (int) $this->context->cart->id . ' was not started: ' .
+            Tools::substr(preg_replace('/\s+/', ' ', strip_tags($ex->getMessage())), 0, 500),
+            3
+        );
         $this->context->smarty->assign('error_message', $this->module->l('Technical error occured'));
 
+		// No order was created: the customer session and the cart are kept
 		if ($this->context->customer->is_guest)
 		{
 			$this->context->smarty->assign(array(
-				'reference_order'   => $this->module->currentOrderReference,
+				'reference_order'   => '',
 				'email'             => $this->context->customer->email
 			));
-			/* If guest we clear the cookie for security reason */
-			$this->context->customer->mylogout();
 		}
+
+        // PrestaShop 1.7+ has no templates of the 1.6 theme: the message is shown
+        // by the shop itself on the order page
+        if (version_compare(_PS_VERSION_, '1.7', '>=') && method_exists($this, 'redirectWithNotifications'))
+        {
+            $message = $this->context->smarty->getTemplateVars('error_message');
+            $this->errors[] = is_string($message) && $message !== '' ? $message : $this->module->l('Technical error occured');
+            $this->redirectWithNotifications($this->context->link->getPageLink('order', true));
+            return;
+        }
 
         $this->setTemplate('payment_error.tpl');
 
